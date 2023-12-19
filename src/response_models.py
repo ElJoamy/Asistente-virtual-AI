@@ -41,3 +41,10 @@ class PersonalizedResponse(BaseModel):
 
 class PersonalizedRequest(BaseModel):
     text: str
+
+class SuggestionRequest(BaseModel):
+    message: str
+    preference: str
+
+class SuggestionResponse(BaseModel):
+    recommendation: str

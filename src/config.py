@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     k_revision: str = "local"
     log_level: str = "DEBUG"
     openai_key: str
-    model: GPTModel = GPTModel.gpt_3_5_turbo
+    model: GPTModel = GPTModel.gpt_4
     telegram_token: str
     sentiment_model_id: str = "karina-aquino/spanish-sentiment-model"
     api_url: str = "http://localhost:8000/"
