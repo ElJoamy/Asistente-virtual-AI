@@ -21,7 +21,8 @@ from src.response_models import (
     StatusResponse,
     SentimentRequest,
     AnalysisRequest,
-    PersonalizedResponse
+    PersonalizedResponse,
+    PersonalizedRequest
 )
 
 
@@ -114,9 +115,9 @@ def analyze_sentiment(request: SentimentRequest, sentiment_service: SentimentAna
     }
 
 @app.post("/personalized_response", response_model=PersonalizedResponse)
-async def get_personalized_response(text: str, log_id: int):
-    sentiment_label = analyze_sentiment(text)
-    response_message = await generate_response_based_on_sentiment(sentiment_label, text, log_id)
+async def get_personalized_response(request: PersonalizedRequest):
+    sentiment_label = analyze_sentiment(request.text)
+    response_message = await generate_response_based_on_sentiment(sentiment_label, request.text)
     return {"message": response_message}
 
 
@@ -126,26 +127,26 @@ def analyze_sentiment(text):
     return result[0]['label']
 
 # Modifica la función generate_response_based_on_sentiment para aceptar el log_id
-async def generate_response_based_on_sentiment(sentiment_label, user_text, log_id):
+async def generate_response_based_on_sentiment(sentiment_label, user_text):
     if sentiment_label in ['4', '5']:
-        mood = "happy"
+        mood = "feliz"
     elif sentiment_label == '3':
         mood = "neutral"
     else:
-        mood = "sad or angry"
+        mood = "triste o enojado"
 
-    prompt = f"I am feeling {mood}. Can you provide a supportive message?"
+    prompt = f"Me siento {mood}. ¿Puedes proporcionar un mensaje de apoyo?"
 
     # Llama a la función para generar una respuesta basada en el sentimiento
-    response = generate_response_with_gpt4(prompt, user_text, log_id)  # Pasa el texto del usuario y log_id
+    response = generate_response_with_gpt4(prompt, user_text)  # Pasa el texto del usuario y log_id
     return response
 
 # Modifica la función generate_response_with_gpt4 para aceptar el log_id
-def generate_response_with_gpt4(prompt, user_text, log_id):
+def generate_response_with_gpt4(prompt, user_text):
     response = client.chat.completions.create(
         model=_SETTINGS.model,  # Utiliza GPT-4 para generar respuestas
         messages=[
-            {"role": "system", "content": "Genera una respuesta basada en el sentimiento del usuario y responde siempre en español, ademas dale proverbios y refranes o algun chiste de acuerdo a su emocion, al final siempre recomiendale una cancion de acuerdo a su emocion"},
+            {"role": "system", "content": "Genera una respuesta basada en el sentimiento del usuario y responde siempre en español, ademas dale proverbios y refranes o algun chiste de acuerdo a su emocion, al final siempre recomiendale una cancion de acuerdo a su emocion, recuerda dar la respuesta en JSON"},
             {"role": "user", "content": user_text},  # Agrega el texto del usuario como entrada
             {"role": "user", "content": prompt},
         ],

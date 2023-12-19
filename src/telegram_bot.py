@@ -56,7 +56,7 @@ def handle_help(message):
         "/help - Muestra esta ayuda.\n"
         "/status - Obtiene el estado actual del servicio.\n"
         "/sentiment - Inicia el proceso para analizar el sentimiento de un texto.\n"
-        "/analysis - Inicia el proceso para realizar un análisis completo de un texto (incluye POS tags, NER, y análisis de sentimiento).\n\n"
+        "/amigo - Inicia el proceso para generar un mensaje personalizado basado en tu estado de ánimo.\n\n"
         "Si necesitas más información o asistencia, no dudes en escribir el comando correspondiente."
     )
 
@@ -142,20 +142,18 @@ def handle_amigo(message):
     command_time = datetime.now()
     comando = message.text
 
-    log_id = log_user_data(user_id, user_name, command_time, comando)
+    log_user_data(user_id, user_name, command_time, comando)
 
     bot.send_message(user_id, "Por favor, envía un texto para generar un mensaje basado en tu estado de ánimo.")
-    bot.register_next_step_handler(message, lambda message: asyncio.ensure_future(generate_personalized_response(message, log_id)))
+    bot.register_next_step_handler(message, generate_personalized_response)
 
-async def generate_personalized_response(message, log_id):
+def generate_personalized_response(message):
     user_id = message.from_user.id
     text = message.text
 
-    # Define API_URL si no lo has hecho en otro lugar
-    API_URL = _SETTINGS.api_url  # Reemplaza con la URL correcta de tu API
-
+    API_URL = _SETTINGS.api_url
     response_url = API_URL + "personalized_response"
-    payload = {"text": text, "log_id": log_id}
+    payload = {"text": text}
 
     try:
         response = requests.post(response_url, json=payload)
@@ -167,8 +165,7 @@ async def generate_personalized_response(message, log_id):
     except requests.exceptions.RequestException as e:
         reply_message = f"Error al conectarse con la API: {e}"
 
-    await bot.send_message(user_id, reply_message)
-
+    bot.send_message(user_id, reply_message)
 
 if __name__ == "__main__":
     bot.infinity_polling()

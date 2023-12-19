@@ -136,12 +136,12 @@ class DatabaseManager:
             print(f"Error al obtener el estado del servicio: {e}")
             return None
 
-    def insert_personalized_response(self, log_id, user_id, sentiment_label, response_message, fecha_hora, tiempo_ejecucion, modelos, longitud_texto, uso_memoria, uso_cpu):
+    def insert_personalized_response(self, log_id, sentiment_label, response_message, fecha_hora, tiempo_ejecucion, modelos, longitud_texto, uso_memoria, uso_cpu):
         query = """
         INSERT INTO personalized_response (log_id, user_id, sentiment_label, response_message, fecha_hora, tiempo_ejecucion, modelos, longitud_texto, uso_memoria, uso_cpu)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        data = (log_id, user_id, sentiment_label, response_message, fecha_hora, tiempo_ejecucion, modelos, longitud_texto, uso_memoria, uso_cpu)
+        data = (log_id, sentiment_label, response_message, fecha_hora, tiempo_ejecucion, modelos, longitud_texto, uso_memoria, uso_cpu)
         
         try:
             cursor = self.connection.cursor()

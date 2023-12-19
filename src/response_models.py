@@ -38,3 +38,6 @@ class AnalysisRequest(BaseModel):
 
 class PersonalizedResponse(BaseModel):
     message: str
+
+class PersonalizedRequest(BaseModel):
+    text: str
