@@ -57,3 +57,4 @@ CREATE TABLE IF NOT EXISTS personalized_response (
     uso_cpu FLOAT NOT NULL,
     FOREIGN KEY (log_id) REFERENCES user_log(log_id)
 );
+
