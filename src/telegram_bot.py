@@ -3,9 +3,6 @@ import requests
 from datetime import datetime
 from src.config import get_settings
 from src.db.db_manage import DatabaseManager
-from io import BytesIO
-from telebot.async_telebot import AsyncTeleBot
-import asyncio
 
 _SETTINGS = get_settings()
 
