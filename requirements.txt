@@ -12,3 +12,4 @@ transformers
 telebot
 pymysql
 mysql-connector-python
+openai
