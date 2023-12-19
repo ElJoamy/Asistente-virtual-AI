@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     model: GPTModel = GPTModel.gpt_4
     telegram_token: str
     sentiment_model_id: str = "karina-aquino/spanish-sentiment-model"
-    api_url: str = "http://localhost:8000/"
+    api_url: str
     db_host: str
     db_port: int
     db_user: str
