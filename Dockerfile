@@ -20,7 +20,7 @@ ENV DB_USER $DB_USER
 ENV DB_PASSWORD $DB_PASSWORD
 ENV DB_NAME $DB_NAME
 
-ENV PORT 8080
+ENV PORT 8000
 
 RUN apt-get update && apt-get install -y libgl1
 
