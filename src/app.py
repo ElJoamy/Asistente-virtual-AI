@@ -1,8 +1,9 @@
 import os
 import time
+import requests
+import openai
 import spacy
 import json
-import src.telegram_bot as telegram_bot
 import psutil
 from fastapi import FastAPI, UploadFile, File, HTTPException, status,Depends, Request
 from fastapi.responses import JSONResponse, Response, FileResponse
@@ -18,6 +19,9 @@ from src.response_models import (
     SentimentAnalysisResponse,
     TextAnalysisResponse,
     StatusResponse,
+    SentimentRequest,
+    AnalysisRequest,
+    PersonalizedResponse
 )
 
 
@@ -31,6 +35,8 @@ app = FastAPI(
 db_manager = DatabaseManager(_SETTINGS.db_host, _SETTINGS.db_port, _SETTINGS.db_user, _SETTINGS.db_pass, _SETTINGS.db_name)
 
 nlp = spacy.load("es_core_news_sm")
+
+client = openai.OpenAI(api_key=_SETTINGS.openai_key)
 
 def get_sentiment_service():
     return SentimentAnalysisService()
@@ -62,123 +68,92 @@ def get_status():
     }
 
 @app.post("/sentiment", response_model=SentimentAnalysisResponse, summary="Analiza sentimiento", description="Realiza un análisis de sentimiento en el texto proporcionado.")
-def analyze_sentiment(text: str, user_id: int, sentiment_service: SentimentAnalysisService = Depends(get_sentiment_service)):
+def analyze_sentiment(request: SentimentRequest, sentiment_service: SentimentAnalysisService = Depends(SentimentAnalysisService)):
     start_time = time.time()
-    result = sentiment_service.analyze_sentiment(text)
+    result = sentiment_service.analyze_sentiment(request.text)
     end_time = time.time()
     execution_time = end_time - start_time
 
     prediction_datetime = datetime.now().isoformat()
-    text_length = len(text)
-    model_version = _SETTINGS.sentiment_model_id 
-    process = psutil.Process(os.getpid())
-    memory_info = process.memory_info().rss 
-    cpu_usage = process.cpu_percent(interval=1)
-
-    adjusted_score = (result[0]['score'] * 2) - 1
-
-    db_data = {
-        "user_id": user_id,
-        "Nombre del Archivo": "Sentiment Analysis",
-        "Texto Analizado": text,
-        "Label": result[0]['label'],
-        "Score": adjusted_score,
-        "Fecha y Hora": prediction_datetime,
-        "Tiempo de Ejecución": execution_time,
-        "Modelos": model_version,
-        "Longitud del Texto": text_length,
-        "Uso de Memoria": memory_info,
-        "Uso de CPU": cpu_usage
-    }
-
-    db_manager.insert_sentiment(db_data)
-
-    return {
-        "prediction": {
-            "label": result[0]['label'],
-            "score": adjusted_score
-        },
-        "execution_info": {
-            "execution_time": execution_time,
-            "prediction_datetime": prediction_datetime,
-            "text_length": text_length,
-            "model_version": model_version,
-            "memory_usage": memory_info,
-            "cpu_usage": cpu_usage
-        }
-    }
-
-@app.post("/analysis", response_model=TextAnalysisResponse, summary="Analiza texto", description="Realiza un análisis de texto, incluyendo etiquetas POS y entidades NER, y también realiza un análisis de sentimiento.")
-def analyze_text(text: str, user_id: int, sentiment_service: SentimentAnalysisService = Depends(get_sentiment_service)):
-    start_time = time.time()
-
-    doc = nlp(text)
-    pos_tags = [(token.text, token.pos_) for token in doc]
-    ner_entities = [(ent.text, ent.label_) for ent in doc.ents]
-
-    pos_tags_summary = {tag: [] for _, tag in pos_tags}
-    for word, tag in pos_tags:
-        pos_tags_summary[tag].append(word)
-    pos_tag_count = {tag: len(words) for tag, words in pos_tags_summary.items()}
-
-    ner_summary = {label: [] for _, label in ner_entities}
-    for text, label in ner_entities:
-        ner_summary[label].append(text)
-    ner_count = {label: len(texts) for label, texts in ner_summary.items()}
-
-    sentiment_result = sentiment_service.analyze_sentiment(text)
-    adjusted_score = (sentiment_result[0]['score'] * 2) - 1
-
-    end_time = time.time()
-    execution_time = end_time - start_time
-
-    prediction_datetime = datetime.now().isoformat()
-    text_length = len(text)
-    model_version = "Spacy & Sentiment Model"
+    text_length = len(request.text)
+    model_version = _SETTINGS.sentiment_model_id
     process = psutil.Process(os.getpid())
     memory_info = process.memory_info().rss
     cpu_usage = process.cpu_percent(interval=1)
 
-    db_data = {
-        "user_id": user_id,
-        "Texto Analizado": text,
-        "POS Tags Resumen": str(pos_tags_summary),
-        "POS Tags Conteo": str(pos_tag_count),
-        "NER Resumen": str(ner_summary),
-        "NER Conteo": str(ner_count),
-        "Sentimiento Label": sentiment_result[0]['label'],
-        "Sentimiento Score": adjusted_score,
-        "Fecha y Hora": prediction_datetime,
-        "Tiempo de Ejecución": execution_time,
-        "Modelos": model_version,
-        "Longitud del Texto": text_length,
-        "Uso de Memoria": memory_info,
-        "Uso de CPU": cpu_usage
-    }
+    adjusted_score = (result[0]['score'] * 2) - 1
 
-    db_manager.insert_analysis(db_data)
-    
+    db_data = (
+        request.log_id,
+        request.text,
+        result[0]['label'],
+        adjusted_score,
+        prediction_datetime,
+        execution_time,
+        model_version,
+        text_length,
+        memory_info,
+        cpu_usage
+    )
+
+    db_manager.insert_sentiment(*db_data)
+
     return {
-        "nlp_analysis": {
-            "pos_tags_summary": pos_tags_summary,
-            "pos_tag_count": pos_tag_count,
-            "ner_summary": ner_summary,
-            "ner_count": ner_count,
-            "embeddings": [token.vector.tolist() for token in doc]
-        },
-        "sentiment_analysis": {
-            "label": sentiment_result[0]['label'],
-            "score": adjusted_score
+        "prediction": {
+            "label": result[0]['label'],  # Asegúrate de que 'label' sea un string
+            "score": adjusted_score  # 'score' debe ser un float
         },
         "execution_info": {
-            "execution_time": execution_time,
-            "prediction_datetime": prediction_datetime,
-            "text_length": text_length,
-            "model_version": model_version,
-            "memory_usage": memory_info,
-            "cpu_usage": cpu_usage
+            "execution_time": execution_time,  # float
+            "prediction_datetime": prediction_datetime,  # string
+            "text_length": text_length,  # int
+            "model_version": model_version,  # string
+            "memory_usage": memory_info,  # int
+            "cpu_usage": cpu_usage  # float
         }
     }
+
+@app.post("/personalized_response", response_model=PersonalizedResponse)
+async def get_personalized_response(text: str, log_id: int):
+    sentiment_label = analyze_sentiment(text)
+    response_message = await generate_response_based_on_sentiment(sentiment_label, text, log_id)
+    return {"message": response_message}
+
+
+def analyze_sentiment(text):
+    sentiment_service = get_sentiment_service()
+    result = sentiment_service.analyze_sentiment(text)
+    return result[0]['label']
+
+# Modifica la función generate_response_based_on_sentiment para aceptar el log_id
+async def generate_response_based_on_sentiment(sentiment_label, user_text, log_id):
+    if sentiment_label in ['4', '5']:
+        mood = "happy"
+    elif sentiment_label == '3':
+        mood = "neutral"
+    else:
+        mood = "sad or angry"
+
+    prompt = f"I am feeling {mood}. Can you provide a supportive message?"
+
+    # Llama a la función para generar una respuesta basada en el sentimiento
+    response = generate_response_with_gpt4(prompt, user_text, log_id)  # Pasa el texto del usuario y log_id
+    return response
+
+# Modifica la función generate_response_with_gpt4 para aceptar el log_id
+def generate_response_with_gpt4(prompt, user_text, log_id):
+    response = client.chat.completions.create(
+        model=_SETTINGS.model,  # Utiliza GPT-4 para generar respuestas
+        messages=[
+            {"role": "system", "content": "Genera una respuesta basada en el sentimiento del usuario y responde siempre en español, ademas dale proverbios y refranes o algun chiste de acuerdo a su emocion, al final siempre recomiendale una cancion de acuerdo a su emocion"},
+            {"role": "user", "content": user_text},  # Agrega el texto del usuario como entrada
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.7,  # Temperatura moderada
+    )
+
+    return response.choices[0].message.content
+
 
 if __name__ == "__main__":
     import uvicorn

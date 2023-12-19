@@ -1,3 +1,4 @@
+import asyncio
 import telebot
 import requests
 from datetime import datetime
@@ -17,7 +18,7 @@ API_URL = get_settings().api_url
 
 def log_user_data(user_id, user_name, command_time, comando):
     data = (user_id, user_name, command_time, command_time.date(), comando)
-    db_manager.insert_user_log(data)
+    return db_manager.insert_user_log(data)  # Devuelve log_id
 
 def get_user_ids_from_log():
     try:
@@ -82,8 +83,7 @@ def handle_status(message):
         response = requests.get(status_url)
         if response.status_code == 200:
             status_data = response.json()
-            reply_message = f"Estado del servicio: {status_data['status']}\n" \
-                            f"Nombre del servicio: {status_data['service_name']}\n" \
+            reply_message = f"Nombre del servicio: {status_data['service_name']}\n" \
                             f"Versión: {status_data['version']}\n" \
                             f"Nivel de log: {status_data['log_level']}\n" \
                             f"Modelos utilizados:\n" \
@@ -105,75 +105,70 @@ def handle_sentiment(message):
     command_time = datetime.now()
     comando = message.text
 
-    log_user_data(user_id, user_name, command_time, comando)
+    log_id = log_user_data(user_id, user_name, command_time, comando)
 
     bot.send_message(user_id, "Por favor, envía el texto para el análisis de sentimiento.")
+    bot.register_next_step_handler(message, analyze_sentiment_step, log_id)
 
-    bot.register_next_step_handler(message, analyze_sentiment_step)
 
-def analyze_sentiment_step(message):
+def analyze_sentiment_step(message, log_id):
     user_id = message.from_user.id
-    user_name = message.from_user.username
-    command_time = datetime.now()
     text = message.text
 
     sentiment_url = API_URL + "sentiment"
-    payload = {"text": text}
+    payload = {"text": text, "log_id": log_id}
 
     try:
         response = requests.post(sentiment_url, json=payload)
         if response.status_code == 200:
             sentiment_data = response.json()
-            label = sentiment_data["prediction"]["label"]
-            score = sentiment_data["prediction"]["score"]
-            reply_message = f"Análisis de Sentimiento:\n" \
-                            f"Texto: {text}\n" \
-                            f"Sentimiento: {label}\n" \
-                            f"Puntuación: {score}"
+            reply_message = construct_sentiment_reply(sentiment_data, text)
         else:
             reply_message = "Error al realizar el análisis de sentimiento."
     except requests.exceptions.RequestException as e:
         reply_message = f"Error al conectarse con la API: {e}"
 
-    print (f"El {user_name} con ID {user_id} hizo el análisis de sentimiento a las {command_time.strftime('%H:%M:%S')}")
     bot.send_message(user_id, reply_message)
 
-@bot.message_handler(commands=['analysis'])
-def handle_analysis(message):
+def construct_sentiment_reply(sentiment_data, text):
+    label = sentiment_data["prediction"]["label"]
+    score = sentiment_data["prediction"]["score"]
+    return f"Análisis de Sentimiento:\nTexto: {text}\nSentimiento: {label}\nPuntuación: {score}"
+
+@bot.message_handler(commands=['amigo'])
+def handle_amigo(message):
     user_id = message.from_user.id
     user_name = message.from_user.username
     command_time = datetime.now()
     comando = message.text
 
-    log_user_data(user_id, user_name, command_time, comando)
+    log_id = log_user_data(user_id, user_name, command_time, comando)
 
-    bot.send_message(user_id, "Por favor, envía el texto para el análisis de texto.")
+    bot.send_message(user_id, "Por favor, envía un texto para generar un mensaje basado en tu estado de ánimo.")
+    bot.register_next_step_handler(message, lambda message: asyncio.ensure_future(generate_personalized_response(message, log_id)))
 
-    bot.register_next_step_handler(message, analyze_text_step)
-
-def analyze_text_step(message):
+async def generate_personalized_response(message, log_id):
     user_id = message.from_user.id
-    user_name = message.from_user.username
-    command_time = datetime.now()
     text = message.text
 
-    analysis_url = API_URL + "analysis"
-    payload = {"text": text}
+    # Define API_URL si no lo has hecho en otro lugar
+    API_URL = _SETTINGS.api_url  # Reemplaza con la URL correcta de tu API
+
+    response_url = API_URL + "personalized_response"
+    payload = {"text": text, "log_id": log_id}
 
     try:
-        response = requests.post(analysis_url, json=payload)
+        response = requests.post(response_url, json=payload)
         if response.status_code == 200:
-            analysis_data = response.json()
-            reply_message = "Análisis de Texto:\n"
-            reply_message += f"Texto: {text}\n"
-            reply_message += f"Resumen POS Tags: {analysis_data['nlp_analysis']['pos_tags_summary']}\n"
-            reply_message += f"Resumen NER: {analysis_data['nlp_analysis']['ner_summary']}\n"
-            reply_message += f"Sentimiento: {analysis_data['sentiment_analysis']['label']}\n"
-            reply_message += f"Puntuación de Sentimiento: {analysis_data['sentiment_analysis']['score']}"
+            response_data = response.json()
+            reply_message = response_data["message"]
         else:
-            reply_message = "Error al realizar el análisis de texto."
+            reply_message = "Error al generar la respuesta personalizada."
     except requests.exceptions.RequestException as e:
         reply_message = f"Error al conectarse con la API: {e}"
 
-    print (f"El {user_name} con ID {user_id} hizo el análisis de texto a las {command_time.strftime('%H:%M:%S')}")
-    bot.send_message(user_id, reply_message)
+    await bot.send_message(user_id, reply_message)
+
+
+if __name__ == "__main__":
+    bot.infinity_polling()
