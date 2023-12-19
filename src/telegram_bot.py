@@ -1,6 +1,7 @@
 import asyncio
-import telebot
+import telebot 
 import requests
+from telebot import types
 from datetime import datetime
 from src.config import get_settings
 from src.db.db_manage import DatabaseManager
@@ -37,7 +38,7 @@ def handle_start(message):
 
     log_user_data(user_id, user_name, command_time, comando)
 
-    bot.reply_to(message, f"Hola {user_name}, bienvenido a tu asistente virtual...")
+    bot.reply_to(message, f"Hola {user_name}, bienvenido a tu virtual AI assistant que te ayudará a mejorar tu estado de ánimo y a encontrar recomendaciones personalizadas para ti, puedes ver los comandos disponibles con /help.")
     print(f"El {user_name} con ID {user_id} hizo el comando {comando} a las {command_time.strftime('%H:%M:%S')}")
 
 @bot.message_handler(commands=['help'])
@@ -56,7 +57,8 @@ def handle_help(message):
         "/help - Muestra esta ayuda.\n"
         "/status - Obtiene el estado actual del servicio.\n"
         "/sentiment - Inicia el proceso para analizar el sentimiento de un texto.\n"
-        "/amigo - Inicia el proceso para generar un mensaje personalizado basado en tu estado de ánimo.\n\n"
+        "/amigo - Inicia el proceso para generar un mensaje personalizado basado en tu estado de ánimo.\n"
+        "/sugerencia - Inicia el proceso para obtener una sugerencia basada en tu estado de ánimo.\n\n"
         "Si necesitas más información o asistencia, no dudes en escribir el comando correspondiente."
     )
 
@@ -166,6 +168,32 @@ def generate_personalized_response(message):
         reply_message = f"Error al conectarse con la API: {e}"
 
     bot.send_message(user_id, reply_message)
+
+@bot.message_handler(commands=['sugerencia'])
+def handle_suggestion(message):
+    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+    markup.add('libro', 'video de youtube', 'cancion', 'serie', 'chiste', 'refran')
+    msg = bot.send_message(message.chat.id, "¿Qué te gustaría que te recomendara?", reply_markup=markup)
+    bot.register_next_step_handler(msg, get_preference)
+
+def get_preference(message):
+    preference = message.text  # Aquí guardas la preferencia del usuario
+    markup = types.ReplyKeyboardRemove()  # Preparas para quitar el teclado
+    msg = bot.send_message(message.chat.id, "Por favor, envíame un mensaje sobre cómo te sientes.", reply_markup=markup)
+    bot.register_next_step_handler(msg, lambda msg: suggest_based_on_mood(msg, preference))
+
+def suggest_based_on_mood(message, preference):
+    user_sentiment_message = message.text  # Aquí tienes el mensaje del usuario sobre cómo se siente
+    user_id = message.from_user.id
+
+    # Aquí enviarías tanto el mensaje del usuario como la preferencia al endpoint /sugerencia
+    response = requests.post(f"{API_URL}sugerencia", json={"message": user_sentiment_message, "preference": preference})
+    if response.status_code == 200:
+        recommendation = response.json()["recommendation"]
+        bot.send_message(user_id, f"{recommendation}")
+    else:
+        bot.send_message(user_id, "Hubo un error al procesar tu solicitud.")
+
 
 if __name__ == "__main__":
     bot.infinity_polling()

@@ -22,7 +22,9 @@ from src.response_models import (
     SentimentRequest,
     AnalysisRequest,
     PersonalizedResponse,
-    PersonalizedRequest
+    PersonalizedRequest,
+    SuggestionRequest,
+    SuggestionResponse
 )
 
 
@@ -155,6 +157,37 @@ def generate_response_with_gpt4(prompt, user_text):
 
     return response.choices[0].message.content
 
+@app.post("/sugerencia", response_model=SuggestionResponse)
+async def get_suggestion(request: SuggestionRequest):
+    sentiment_service = SentimentAnalysisService()
+    sentiment_result = sentiment_service.analyze_sentiment(request.message)
+    sentiment_label = sentiment_result[0]['label']
+    
+    # Mapea la preferencia a un prompt específico para GPT-4
+    prompts = {
+        'libro': "Recomienda un libro para alguien que se siente {sentiment} y explica por qué lo recomiendas.",
+        'video de youtube': "Recomienda un video de YouTube para alguien que se siente {sentiment} y explica por qué lo recomiendas.",
+        'cancion': "Recomienda una canción para alguien que se siente {sentiment} y explica por qué la recomiendas",
+        'serie': "Recomienda una serie para alguien que se siente {sentiment} y explica por qué la recomiendas y en que plataforma se puede ver.",
+        'chiste': "Dime un chiste para alguien que se siente {sentiment}, trata de que tu chiste no sea muy basico o muy malo, usa tu poder para navegar en internet y encontrar un buen chiste.",
+        'refran': "Comparte un refrán para alguien que se siente {sentiment} "
+    }
+
+    prompt = prompts[request.preference].format(sentiment=sentiment_label)
+    
+    # Hacer la llamada a OpenAI GPT-4 con el prompt correspondiente
+    response = client.chat.completions.create(
+        model=_SETTINGS.model,
+        messages=[
+            {"role": "system", "content": "El siguiente es un consejo para alguien basado en su estado de ánimo."},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.7  # Puede ajustar esto según sea necesario
+    )
+
+    recommendation = response.choices[0].message.content
+    
+    return SuggestionResponse(recommendation=recommendation)
 
 if __name__ == "__main__":
     import uvicorn
