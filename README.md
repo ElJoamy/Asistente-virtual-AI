@@ -1,8 +1,4 @@
-Crear un archivo `README.md` detallado para un proyecto como el tuyo es fundamental para su comprensión y uso efectivo. Aquí tienes un esquema que puedes seguir, adaptándolo a las necesidades específicas de tu proyecto:
-
----
-
-# Nombre del Proyecto: AssistBot API AI with Telegram
+# AssistBot API AI with Telegram
 
 ## Descripción
 
